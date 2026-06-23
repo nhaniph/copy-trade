@@ -602,7 +602,7 @@ def get_watchlist_ideas(week: str | None = None):
         # Get chart image if any
         chart_sig = db.table("signals").select("raw_message").eq("trade_id", trade["id"]) \
             .eq("source", "chart").limit(1).execute().data
-        trade["chart_url"] = f"/static/charts/{chart_sig[0]['raw_message']}" if chart_sig else None
+        trade["chart_url"] = chart_sig[0]["raw_message"] if chart_sig else None
 
         # Get chat updates (non-idea signals)
         updates = db.table("signals").select("*").eq("trade_id", trade["id"]) \
@@ -656,19 +656,32 @@ async def upload_video(file: UploadFile = File(...), video_type: str = Form(defa
     try:
         ideas = analyze_video(tmp_path)
 
-        # Extract chart frames for each idea that has a chart_time
-        charts_dir = Path(__file__).parent / "static" / "charts"
-        charts_dir.mkdir(exist_ok=True)
+        # Extract chart frames and upload to Supabase Storage
         chart_files: dict[int, str] = {}
+        supabase_url = os.environ.get("SUPABASE_URL", "")
         for i, idea in enumerate(ideas):
             t = idea.get("chart_time")
-            if t is not None:
-                pair_slug = (idea.get("pair") or "unknown").replace("/", "")
-                filename = f"{pair_slug}_{video_date or datetime.now(timezone.utc).strftime('%Y%m%d')}_{i}.jpg"
-                out_path = str(charts_dir / filename)
-                if extract_frame(tmp_path, float(t), out_path):
-                    chart_files[i] = filename
-                    print(f"  Chart extracted for {idea.get('pair')} at {t}s → {filename}")
+            if t is None:
+                continue
+            pair_slug = (idea.get("pair") or "unknown").replace("/", "")
+            filename = f"{pair_slug}_{video_date or datetime.now(timezone.utc).strftime('%Y%m%d')}_{i}.jpg"
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as ftmp:
+                frame_path = ftmp.name
+            try:
+                if extract_frame(tmp_path, float(t), frame_path):
+                    with open(frame_path, "rb") as img:
+                        img_bytes = img.read()
+                    get_client().storage.from_("charts").upload(
+                        filename, img_bytes,
+                        {"content-type": "image/jpeg", "x-upsert": "true"}
+                    )
+                    public_url = f"{supabase_url}/storage/v1/object/public/charts/{filename}"
+                    chart_files[i] = public_url
+                    print(f"  Chart uploaded for {idea.get('pair')} at {t}s → {filename}")
+            except Exception as e:
+                print(f"  Chart upload failed for {idea.get('pair')}: {e}")
+            finally:
+                os.unlink(frame_path)
     finally:
         os.unlink(tmp_path)
 
