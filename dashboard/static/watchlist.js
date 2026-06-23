@@ -181,7 +181,7 @@ function buildCard(idea, updates) {
 
     <div class="review-trigger" style="border-color:var(--text-muted);margin:0 14px 12px">
       <span style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Entry Condition</span>
-      <span class="review-trigger-text" style="color:var(--text);font-size:15px;line-height:1.5">"${idea.entry_condition || idea.notes || '—'}"</span>
+      <span class="review-trigger-text" style="color:var(--text);font-size:15px;line-height:1.5">"${idea.entry_condition || '—'}"</span>
     </div>
 
     ${levelsHtml}

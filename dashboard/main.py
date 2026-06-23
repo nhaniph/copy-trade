@@ -593,7 +593,7 @@ def get_watchlist_ideas(week: str | None = None):
         # Get base signal for extra fields
         trade["video_type"] = trade.get("notes") or "weekly_prep"
         sig = db.table("signals").select("*").eq("trade_id", trade["id"]) \
-            .eq("status", "idea").limit(1).execute().data
+            .eq("status", "idea").eq("source", "watchlist").limit(1).execute().data
         if sig:
             trade["entry_condition"] = sig[0].get("entry")
             trade["target"] = sig[0].get("target")
