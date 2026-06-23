@@ -51,18 +51,15 @@ STOXX=EU50, BTC=BTCUSD, ETH=ETHUSD.
 WHAT COUNTS AS A TRADE IDEA
 ═══════════════════════════════════════════
 
-Include an idea ONLY if Tom provides ALL of the following:
-- A specific instrument
-- A clear directional bias (long or short)
-- A concrete entry condition or trigger (not just "watching it")
-- At least one of: a specific level, target, or invalidation
+Include an idea if Tom:
+- Names an instrument and describes a directional bias AND at least one of: an entry condition, a specific level, or a setup trigger
+- Examples that qualify: "I'm looking for shorts on cable if we get a break of X", "I want to see a retest of Y before going long", "bullish on gold above Z level"
 
 Do NOT include:
-- Brief mentions with no entry condition ("I'm keeping an eye on gold")
-- Pure educational commentary with no actionable setup
+- Pure passing mentions with zero detail ("gold is interesting")
+- Pure educational commentary with no specific instrument/setup
 - Markets he explicitly says he is NOT interested in this week
-- Vague bias with no trigger ("I think cable could go higher")
-- Duplicate instruments — if Tom mentions the same pair twice, include only the most detailed version
+- Duplicate instruments — if Tom mentions the same pair more than once, include only the most detailed version of that idea
 
 ═══════════════════════════════════════════
 OUTPUT FORMAT
