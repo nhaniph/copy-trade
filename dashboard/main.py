@@ -4,9 +4,11 @@ import re
 import shutil
 import statistics
 import tempfile
+import httpx
+import anthropic
 from pathlib import Path
 from datetime import datetime, timezone
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -715,3 +717,138 @@ async def upload_image(file: UploadFile = File(...), caption: str = Form(default
     week_label = _current_week_label()
     saved = _save_watchlist_ideas(ideas, "image", week_label)
     return {"ok": True, "ideas_saved": saved, "week": week_label}
+
+
+# ── Pushover ──────────────────────────────────────────────────────────────────
+
+def send_pushover(title: str, message: str, priority: int = 1) -> bool:
+    """
+    Send a Pushover notification.
+    priority: 0=normal, 1=high (bypasses DND), 2=emergency (repeats until acknowledged)
+    """
+    payload = {
+        "token": os.environ.get("PUSHOVER_API_TOKEN", ""),
+        "user": os.environ.get("PUSHOVER_USER_KEY", ""),
+        "title": title,
+        "message": message,
+        "priority": priority,
+        "sound": "siren",
+    }
+    if priority == 2:
+        payload["retry"] = 30    # retry every 30s
+        payload["expire"] = 3600  # give up after 1 hour
+
+    try:
+        r = httpx.post("https://api.pushover.net/1/messages.json", data=payload, timeout=10)
+        return r.status_code == 200
+    except Exception as e:
+        print(f"Pushover error: {e}")
+        return False
+
+
+def _enrich_alert_with_claude(pair: str, price: str, note: str, idea: dict, updates: list) -> str:
+    """Ask Claude to write a clear, actionable alert message using trade idea context."""
+    updates_text = ""
+    if updates:
+        updates_text = "\n".join(
+            f"- {u.get('created_at', '')[:10]}: {u.get('raw_message', '')}"
+            for u in updates[-3:]  # last 3 updates only
+        )
+
+    prompt = f"""TradingView just fired an alert: {pair} reached {price}.
+{f'Alert note: {note}' if note else ''}
+
+Trade idea context from Tom's weekly prep:
+- Direction: {idea.get('direction') or 'unknown'}
+- Entry condition: {idea.get('entry_condition') or idea.get('notes') or 'n/a'}
+- Target: {idea.get('target') or 'n/a'}
+- Invalidation: {idea.get('invalidation') or 'n/a'}
+- Timeframe: {idea.get('timeframe') or 'n/a'}
+- Confidence: {idea.get('confidence') or 'n/a'}
+{f'Recent Discord updates:{chr(10)}{updates_text}' if updates_text else ''}
+
+Write a short alert message (4-5 sentences max) telling me exactly what just happened, what Tom's setup is, and what I should be looking for. Be direct and specific — I may be asleep. Do not use bullet points, just plain sentences."""
+
+    try:
+        client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=300,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text.strip()
+    except Exception as e:
+        print(f"Claude enrichment error: {e}")
+        # Fallback to a plain message if Claude fails
+        return (
+            f"{pair} hit {price}. "
+            f"Tom's setup: {idea.get('entry_condition') or idea.get('notes') or 'see watchlist'}. "
+            f"Target: {idea.get('target') or 'n/a'}. "
+            f"Invalidation: {idea.get('invalidation') or 'n/a'}."
+        )
+
+
+# ── TradingView webhook ───────────────────────────────────────────────────────
+
+@app.post("/api/alerts/tradingview")
+async def tradingview_webhook(request: Request):
+    """
+    Receives TradingView alerts. Expected payload:
+    {"pair": "GBPUSD", "price": "{{close}}", "note": "optional context"}
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    pair = (body.get("pair") or "").upper().strip()
+    price = str(body.get("price") or "")
+    note = body.get("note") or ""
+
+    print(f"TradingView alert received: {pair} @ {price} | {note}")
+
+    if not pair:
+        raise HTTPException(400, "Missing pair in alert payload")
+
+    db = get_client()
+
+    # Find the active watchlist idea for this pair
+    result = db.table("trades").select("*") \
+        .eq("source", "watchlist").eq("status", "idea") \
+        .ilike("pair", pair) \
+        .order("opened_at", desc=True).limit(1).execute()
+
+    if not result.data:
+        # No matching idea — send a simple alert anyway
+        send_pushover(
+            title=f"⚡ {pair} Alert",
+            message=f"{pair} hit {price}. No active watchlist idea found for this pair.",
+            priority=1,
+        )
+        return {"ok": True, "matched_idea": False}
+
+    idea = result.data[0]
+
+    # Enrich idea with signal fields
+    sig = db.table("signals").select("*").eq("trade_id", idea["id"]) \
+        .eq("status", "idea").limit(1).execute().data
+    if sig:
+        idea["entry_condition"] = sig[0].get("entry")
+        idea["target"] = sig[0].get("target")
+        idea["invalidation"] = sig[0].get("invalidation")
+        idea["timeframe"] = sig[0].get("notes")
+
+    # Get recent Discord updates
+    updates = db.table("signals").select("*").eq("trade_id", idea["id"]) \
+        .neq("status", "idea").order("created_at", desc=True).limit(3).execute().data or []
+
+    # Ask Claude to write the alert message
+    message = _enrich_alert_with_claude(pair, price, note, idea, updates)
+
+    direction = idea.get("direction") or ""
+    title = f"🔔 {pair} {direction} — Entry Alert"
+
+    sent = send_pushover(title=title, message=message, priority=1)
+    print(f"Pushover sent: {sent} | {title}")
+
+    return {"ok": True, "matched_idea": True, "alert_sent": sent, "message": message}
