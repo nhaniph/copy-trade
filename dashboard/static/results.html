@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TR Trades — Results</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo">TR Trades</div>
+      <nav>
+        <a href="/watchlist" class="nav-item">👁 Watchlist</a>
+        <a href="/results" class="nav-item active">📈 Results</a>
+        <a href="/ideas" class="nav-item">💡 Ideas</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+        <h1 class="page-title" style="margin-bottom:0">Results</h1>
+        <div class="source-badge" id="date-range-badge"></div>
+      </div>
+
+      <!-- Confirmed stats -->
+      <div class="stats-section-header">
+        <span class="stats-section-title">Confirmed R</span>
+        <span class="stats-section-note" id="confirmed-coverage">— trades with explicit R stated</span>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Total R</div><div class="stat-value" id="conf-total-r">—</div></div>
+        <div class="stat-card"><div class="stat-label">Win Rate</div><div class="stat-value" id="conf-win-rate">—</div></div>
+        <div class="stat-card"><div class="stat-label">Expectancy</div><div class="stat-value" id="conf-expectancy">—</div></div>
+        <div class="stat-card"><div class="stat-label">Sharpe Ratio</div><div class="stat-value" id="conf-sharpe">—</div></div>
+        <div class="stat-card"><div class="stat-label">Profit Factor</div><div class="stat-value" id="conf-profit-factor">—</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Win</div><div class="stat-value green" id="conf-avg-win">—</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Loss</div><div class="stat-value red" id="conf-avg-loss">—</div></div>
+        <div class="stat-card"><div class="stat-label">Trades w/ R</div><div class="stat-value" id="conf-total-trades">—</div></div>
+      </div>
+
+      <!-- Estimated stats -->
+      <div class="stats-section-header" style="margin-top:24px;">
+        <span class="stats-section-title" style="color:var(--text-muted)">Estimated R</span>
+        <span class="stats-section-note">missing R filled with ±1R — treat as directional only</span>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card muted"><div class="stat-label">Total R</div><div class="stat-value" id="est-total-r">—</div></div>
+        <div class="stat-card muted"><div class="stat-label">Win Rate</div><div class="stat-value" id="est-win-rate">—</div></div>
+        <div class="stat-card muted"><div class="stat-label">Expectancy</div><div class="stat-value" id="est-expectancy">—</div></div>
+        <div class="stat-card muted"><div class="stat-label">Sharpe Ratio</div><div class="stat-value" id="est-sharpe">—</div></div>
+        <div class="stat-card muted"><div class="stat-label">Profit Factor</div><div class="stat-value" id="est-profit-factor">—</div></div>
+        <div class="stat-card muted"><div class="stat-label">Avg Win</div><div class="stat-value green" id="est-avg-win">—</div></div>
+        <div class="stat-card muted"><div class="stat-label">Avg Loss</div><div class="stat-value red" id="est-avg-loss">—</div></div>
+        <div class="stat-card muted"><div class="stat-label">Total Trades</div><div class="stat-value" id="est-total-trades">—</div></div>
+      </div>
+
+      <div class="card chart-card">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+          Equity Curve (R)
+          <div class="equity-toggle">
+            <button class="toggle-btn active" id="btn-confirmed" onclick="switchEquity('confirmed')">Confirmed</button>
+            <button class="toggle-btn" id="btn-estimated" onclick="switchEquity('estimated')">Estimated</button>
+          </div>
+        </div>
+        <canvas id="equity-chart" height="100"></canvas>
+      </div>
+
+      <!-- Trade cards -->
+      <div style="margin-top:32px;">
+        <div class="card-header" style="margin-bottom:16px;font-size:14px;font-weight:600;color:var(--text)">Closed Trades</div>
+        <div id="trades-container"></div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/results.js"></script>
+</body>
+</html>

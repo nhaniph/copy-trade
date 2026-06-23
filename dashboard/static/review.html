@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TR Trades — Review Queue</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo">TR Trades</div>
+      <nav>
+        <a href="/" class="nav-item">📊 Journal</a>
+        <a href="/live" class="nav-item">🟢 Live</a>
+        <a href="/backtest" class="nav-item">🔬 Backtest</a>
+        <a href="/ideas" class="nav-item">💡 Ideas</a>
+        <a href="/review" class="nav-item active">✅ Review</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+        <h1 class="page-title" style="margin-bottom:0">Review Queue</h1>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <select id="run-select" class="filter-select" style="min-width:160px;"></select>
+          <div class="source-badge" id="progress-badge">—</div>
+        </div>
+      </div>
+
+      <div class="disclaimer-banner" style="margin-bottom:24px;">
+        Review each closed trade. Check that the exit is real and the R value came from Tom's exit message — not a target mention. Use <strong>Approve</strong> when correct, <strong>Fix R</strong> to correct the number, <strong>Nullify R</strong> if R came from a target not an exit, or <strong>Reopen</strong> if this was a phantom close.
+      </div>
+
+      <div id="queue-container"></div>
+      <div class="pagination" id="pagination"></div>
+    </main>
+  </div>
+
+  <script src="/static/review.js"></script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TR Trades — Watchlist</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo">TR Trades</div>
+      <nav>
+        <a href="/watchlist" class="nav-item active">👁 Watchlist</a>
+        <a href="/results" class="nav-item">📈 Results</a>
+        <a href="/ideas" class="nav-item">💡 Ideas</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+        <div>
+          <h1 class="page-title" style="margin-bottom:4px">Watchlist</h1>
+          <div id="week-label" style="font-size:12px;color:var(--text-muted)">No active week</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:12px;color:var(--text-muted);font-weight:500;white-space:nowrap">Video date:</label>
+            <input type="date" id="video-date" class="filter-input" style="padding:6px 10px;font-size:13px;width:150px" />
+          </div>
+          <label class="toggle-btn" for="weekly-prep-upload" style="cursor:pointer;background:var(--accent);color:#fff;border-color:var(--accent);">
+            📹 Weekly Prep
+          </label>
+          <input type="file" id="weekly-prep-upload" accept="video/*" style="display:none" onchange="uploadVideo(this, 'weekly_prep')" />
+          <label class="toggle-btn" for="trade-review-upload" style="cursor:pointer;background:#7c3aed;color:#fff;border-color:#7c3aed;">
+            📋 Trade Review
+          </label>
+          <input type="file" id="trade-review-upload" accept="video/*" style="display:none" onchange="uploadVideo(this, 'trade_review')" />
+          <label class="toggle-btn" for="image-upload" style="cursor:pointer;">
+            🖼 Chart Image
+          </label>
+          <input type="file" id="image-upload" accept="image/*" style="display:none" onchange="uploadImage(this)" />
+        </div>
+      </div>
+
+      <div id="upload-status" style="display:none;" class="disclaimer-banner"></div>
+
+      <!-- Week filter -->
+      <div id="week-filter" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;"></div>
+
+      <div id="ideas-container">
+        <div class="card" style="padding:48px;text-align:center;color:var(--text-muted);">
+          <div style="font-size:32px;margin-bottom:12px">👁</div>
+          <div style="font-size:16px;font-weight:600;color:var(--text)">No active ideas</div>
+          <div style="margin-top:8px;font-size:13px">Upload Tom's weekly video or a chart screenshot to extract trade ideas.</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/watchlist.js"></script>
+</body>
+</html>

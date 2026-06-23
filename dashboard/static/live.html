@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TR Trades — Live</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo">TR Trades</div>
+      <nav>
+        <a href="/" class="nav-item">📊 Journal</a>
+        <a href="/live" class="nav-item active">🟢 Live</a>
+        <a href="/backtest" class="nav-item">🔬 Backtest</a>
+        <a href="/ideas" class="nav-item">💡 Ideas</a>
+        <a href="/review" class="nav-item">✅ Review</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+        <h1 class="page-title" style="margin-bottom:0">Live</h1>
+        <div class="source-badge live-badge">● Live Monitoring</div>
+      </div>
+
+      <!-- Active setups -->
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+          Active Setups
+          <span class="total-count" id="active-count"></span>
+        </div>
+        <div class="compact-threads" id="active-threads"></div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card"><div class="stat-label">Total R</div><div class="stat-value" id="stat-total-r">—</div></div>
+        <div class="stat-card"><div class="stat-label">Win Rate</div><div class="stat-value" id="stat-win-rate">—</div></div>
+        <div class="stat-card"><div class="stat-label">Expectancy</div><div class="stat-value" id="stat-expectancy">—</div></div>
+        <div class="stat-card"><div class="stat-label">Sharpe Ratio</div><div class="stat-value" id="stat-sharpe">—</div></div>
+        <div class="stat-card"><div class="stat-label">Profit Factor</div><div class="stat-value" id="stat-profit-factor">—</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Win</div><div class="stat-value green" id="stat-avg-win">—</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Loss</div><div class="stat-value red" id="stat-avg-loss">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Trades</div><div class="stat-value" id="stat-total-trades">—</div></div>
+      </div>
+
+      <!-- Equity curve -->
+      <div class="card chart-card">
+        <div class="card-header">Equity Curve (R)</div>
+        <canvas id="equity-chart" height="100"></canvas>
+      </div>
+
+      <!-- Closed trades -->
+      <div class="card">
+        <div class="card-header">Closed Trades</div>
+        <div class="table-wrapper">
+          <table class="trades-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Symbol</th>
+                <th>Direction</th>
+                <th>Result</th>
+                <th>R</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="trades-tbody"></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/live.js"></script>
+</body>
+</html>

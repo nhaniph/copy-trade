@@ -1,0 +1,236 @@
+"""
+Batch backfill — processes Tom's messages in batches of 50 with 5 message overlap.
+
+Usage:
+  python backfill_batch.py --run v2-confirmed
+  python backfill_batch.py  (auto-generates timestamped run label)
+"""
+
+import sys
+import json
+import time
+import argparse
+from pathlib import Path
+from datetime import datetime, timezone
+from dotenv import load_dotenv
+
+load_dotenv()
+
+sys.path.insert(0, str(Path(__file__).parent / "bot"))
+from batch_classifier import classify_batch
+from database import get_client, find_active_trade, create_trade, update_trade_status
+
+BATCH_SIZE = 50
+OVERLAP = 5
+JSON_FILE = Path(__file__).parent / "TR-VIP-JSON.json"
+AUTHOR_NAME = "tr16"
+AUTHOR_NICKNAME = "Tom"
+
+
+def is_tom(author: dict) -> bool:
+    return author.get("name") == AUTHOR_NAME or author.get("nickname") == AUTHOR_NICKNAME
+
+
+def find_active_trade_for_run(pair: str, backtest_run: str) -> dict | None:
+    """Find an idea or open trade for this instrument in this run."""
+    if not pair:
+        return None
+    result = get_client().table("trades") \
+        .select("*") \
+        .ilike("pair", pair) \
+        .in_("status", ["idea", "open"]) \
+        .eq("backtest_run", backtest_run) \
+        .order("opened_at", desc=True) \
+        .limit(1) \
+        .execute()
+    return result.data[0] if result.data else None
+
+
+def insert_batch_signal(discord_message_id: str, raw_message: str, timestamp: str,
+                        idea: dict, msg_status: str, trade_id: str,
+                        backtest_run: str) -> None:
+    db = get_client()
+    row = {
+        "discord_message_id": discord_message_id,
+        "author": AUTHOR_NICKNAME,
+        "raw_message": raw_message,
+        "pair": idea.get("pair"),
+        "direction": idea.get("direction"),
+        "entry": idea.get("entry"),
+        "target": idea.get("target"),
+        "invalidation": idea.get("invalidation"),
+        "notes": idea.get("summary"),
+        "status": msg_status,
+        "trade_id": trade_id,
+        "source": "backfill",
+        "backtest_run": backtest_run,
+        "created_at": timestamp,
+    }
+    try:
+        db.table("signals").insert(row).execute()
+    except Exception as e:
+        if "duplicate" in str(e).lower() or "unique" in str(e).lower():
+            pass
+        else:
+            print(f"    [DB error] {e}")
+
+
+def run_backfill(backtest_run: str):
+    with open(JSON_FILE, encoding="utf-8") as f:
+        data = json.load(f)
+
+    all_messages = data["messages"]
+    tom_messages = [m for m in all_messages if is_tom(m["author"])]
+    print(f"Backtest run: {backtest_run}")
+    print(f"Total messages from Tom: {len(tom_messages)}")
+    print(f"Batch size: {BATCH_SIZE}, Overlap: {OVERLAP}")
+    print(f"Estimated batches: {len(tom_messages) // (BATCH_SIZE - OVERLAP) + 1}\n")
+
+    processed_ids: set[str] = set()
+    signals_saved = 0
+    ideas_found = 0
+    batch_num = 0
+    i = 0
+
+    while i < len(tom_messages):
+        batch = tom_messages[i:i + BATCH_SIZE]
+        batch_num += 1
+
+        classifier_input = [
+            {
+                "index": j,
+                "content": m["content"].strip(),
+                "timestamp": m["timestamp"],
+                "id": m["id"],
+            }
+            for j, m in enumerate(batch)
+        ]
+
+        print(f"Batch {batch_num}: messages {i+1}–{i+len(batch)} "
+              f"({batch[0]['timestamp'][:10]} to {batch[-1]['timestamp'][:10]})")
+
+        ideas = classify_batch(classifier_input)
+        print(f"  → {len(ideas)} ideas/commentaries found")
+
+        for idea in ideas:
+            pair = idea.get("pair")
+            direction = idea.get("direction")
+            idea_status = idea.get("status", "idea")
+            confidence = idea.get("confidence", "high")
+            close_trigger = idea.get("close_trigger")
+            final_r = idea.get("final_r")  # only set if Claude found explicit R statement
+            messages = idea.get("messages", [])
+
+            if not messages:
+                continue
+
+            # Downgrade low-confidence closes to open
+            if idea_status in ("closed_win", "closed_loss") and confidence == "low":
+                print(f"    [DOWNGRADE] Low confidence close for {pair} → keeping as open")
+                idea_status = "open"
+                for m in messages:
+                    if m.get("status") in ("closed_win", "closed_loss"):
+                        m["status"] = "open"
+
+            ideas_found += 1
+
+            # If ALL messages in this idea are already processed, it's a pure
+            # overlap duplicate — skip trade creation entirely and just link
+            # any genuinely new messages to the existing trade.
+            idea_msg_ids = []
+            for msg in messages:
+                idx = msg.get("index", 0)
+                if idx < len(batch):
+                    idea_msg_ids.append(batch[idx]["id"])
+            all_already_processed = idea_msg_ids and all(mid in processed_ids for mid in idea_msg_ids)
+
+            trade_id = None
+            if idea_status != "commentary" and pair:
+                existing_trade = find_active_trade_for_run(pair, backtest_run)
+                if existing_trade:
+                    trade_id = existing_trade["id"]
+                    status_rank = {"idea": 0, "open": 1, "closed_win": 2, "closed_loss": 2, "cancelled": 2}
+                    if status_rank.get(idea_status, 0) > status_rank.get(existing_trade["status"], 0):
+                        r_to_save = final_r
+                        if r_to_save is not None and idea_status == "closed_loss":
+                            r_to_save = -abs(r_to_save)
+                        update_trade_status(trade_id, idea_status, r_to_save)
+                        get_client().table("trades").update({
+                            "confidence": confidence,
+                            "close_trigger": close_trigger,
+                        }).eq("id", trade_id).execute()
+                elif all_already_processed:
+                    # All messages already saved — find the trade they belong to via signals
+                    first_id = idea_msg_ids[0] if idea_msg_ids else None
+                    if first_id:
+                        sig = get_client().table("signals").select("trade_id") \
+                            .eq("discord_message_id", f"{backtest_run}_{first_id}") \
+                            .limit(1).execute()
+                        if sig.data:
+                            trade_id = sig.data[0].get("trade_id")
+                else:
+                    # Use the first message's original timestamp as opened_at
+                    first_msg_idx = messages[0].get("index", 0) if messages else 0
+                    first_ts = batch[first_msg_idx]["timestamp"] if first_msg_idx < len(batch) else None
+                    new_trade = create_trade(pair, direction, idea_status,
+                                             source="backfill", backtest_run=backtest_run,
+                                             opened_at=first_ts)
+                    trade_id = new_trade.get("id")
+                    if trade_id:
+                        get_client().table("trades").update({
+                            "confidence": confidence,
+                            "close_trigger": close_trigger,
+                        }).eq("id", trade_id).execute()
+                    if idea_status in ("closed_win", "closed_loss") and trade_id:
+                        r_to_save = final_r
+                        if r_to_save is not None and idea_status == "closed_loss":
+                            r_to_save = -abs(r_to_save)
+                        update_trade_status(trade_id, idea_status, r_to_save)
+
+            for msg in messages:
+                idx = msg.get("index", 0)
+                if idx >= len(batch):
+                    continue
+
+                original = batch[idx]
+                msg_id = original["id"]
+
+                if msg_id in processed_ids:
+                    continue
+                processed_ids.add(msg_id)
+
+                msg_status = msg.get("status", idea_status)
+                timestamp = original["timestamp"]
+                content = original["content"].strip()
+
+                insert_batch_signal(
+                    discord_message_id=f"{backtest_run}_{msg_id}",
+                    raw_message=content,
+                    timestamp=timestamp,
+                    idea=idea,
+                    msg_status=msg_status,
+                    trade_id=trade_id,
+                    backtest_run=backtest_run,
+                )
+                signals_saved += 1
+                trigger_note = f" [trigger: {close_trigger[:40]}]" if close_trigger and msg_status in ("closed_win", "closed_loss") else ""
+                r_note = f" [{final_r:+.1f}R]" if final_r is not None and msg_status in ("closed_win", "closed_loss") else ""
+                print(f"    [{msg_status}]{r_note} {pair or '?'} — {content[:60]}{'...' if len(content) > 60 else ''}{trigger_note}")
+
+        i += BATCH_SIZE - OVERLAP
+        time.sleep(1)
+
+    print(f"\n{'='*50}")
+    print(f"Run: {backtest_run}")
+    print(f"  Ideas/commentaries identified: {ideas_found}")
+    print(f"  Signals saved to DB: {signals_saved}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--run", type=str, default=None,
+                        help="Backtest run label (e.g. v2-confirmed). Defaults to timestamped label.")
+    args = parser.parse_args()
+
+    run_label = args.run or f"run-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M')}"
+    run_backfill(run_label)

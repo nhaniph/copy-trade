@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TR Trades — Trades</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo">TR Trades</div>
+      <nav>
+        <a href="/" class="nav-item">📊 Journal</a>
+        <a href="/trades" class="nav-item active">📈 Trades</a>
+        <a href="/ideas" class="nav-item">💡 Ideas</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <h1 class="page-title">Trades</h1>
+
+      <div class="filters">
+        <input type="text" id="filter-pair" placeholder="Filter by symbol..." class="filter-input" />
+        <select id="filter-status" class="filter-select">
+          <option value="">All statuses</option>
+          <option value="idea">Idea</option>
+          <option value="open">Open</option>
+          <option value="closed_win">Win</option>
+          <option value="closed_loss">Loss</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <button class="btn" onclick="loadThreads(1)">Filter</button>
+        <span class="total-count" id="total-count"></span>
+      </div>
+
+      <div id="threads-container"></div>
+      <div class="pagination" id="pagination"></div>
+    </main>
+  </div>
+
+  <script src="/static/trades.js"></script>
+</body>
+</html>
