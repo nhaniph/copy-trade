@@ -81,7 +81,7 @@ Return a JSON array. One object per trade idea:
   }
 ]
 
-For "chart_time": provide the number of seconds into the video where Tom is showing the chart for this specific trade idea. Pick the moment the chart is most clearly visible on screen. If no chart is shown, use null.
+For "chart_time": provide the number of seconds into the video where the chart for THIS specific instrument is clearly visible on screen AND the instrument ticker/name is legible in the chart header or title bar. Only provide a timestamp if you are confident the chart shown matches the pair in this idea. If you are not certain, use null — a wrong chart is worse than no chart.
 
 If no trade ideas are found, return an empty array [].
 Return only valid JSON. No markdown, no explanation."""
